@@ -5,8 +5,8 @@
 Author: Aydin Buluc, LBNL, abuluc@lbl.gov
 Date: 2/28/2014
 
-The official release is here: https://people.eecs.berkeley.edu/~aydin/csb/html/index.html
-This github is to allow new development (i.e. OpenMP and OpenCilk porting, bringing the SpMM case vectorization to AVX2-AVX512)
+- The official release with better instructions for compilation/running is here: https://people.eecs.berkeley.edu/~aydin/csb/html/index.html
+- This github is to allow new development (i.e. OpenMP and OpenCilk porting, bringing the SpMM case vectorization to AVX2-AVX512)
 
 Classes
 -------
