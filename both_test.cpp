@@ -22,13 +22,12 @@
 using namespace std;
 
 #define INDEXTYPE uint32_t
-#define VALUETYPE float
+#ifdef SINGLEPRECISION
+	#define VALUETYPE float
+#else
+	#define VALUETYPE double
+#endif
 
-/* Alternative native timer (wall-clock):
- *	timeval tim;		
- *	gettimeofday(&tim, NULL);
- *	double t1=tim.tv_sec+(tim.tv_usec/1000000.0);
- */
 
 int main(int argc, char* argv[])
 {
@@ -113,8 +112,8 @@ int main(int argc, char* argv[])
 		if(iscsc)
 		{
 			fread(&n, sizeof(INDEXTYPE), 1, f);
-            fread(&m, sizeof(INDEXTYPE), 1, f);
-            fread(&nnz, sizeof(INDEXTYPE), 1, f);
+            		fread(&m, sizeof(INDEXTYPE), 1, f);
+            		fread(&nnz, sizeof(INDEXTYPE), 1, f);
 		}
 		else
 		{
@@ -217,15 +216,6 @@ int main(int argc, char* argv[])
 
 	cout << "# workers: "<< gl_nworkers << endl;
 	BiCsb<VALUETYPE, INDEXTYPE> bicsb(*csc, gl_nworkers);
-	// BiCsb<bool, INDEXTYPE> bin_csb(*csc, gl_nworkers);
-
-#ifndef NOBM
-	BmCsb<VALUETYPE, INDEXTYPE, RBDIM> bmcsb(*csc, gl_nworkers);
-	ofstream stats("stats.txt");	
-	bmcsb.PrintStats(stats);
-	Spvec<VALUETYPE, INDEXTYPE> y_bmcsb(m);
-	y_bmcsb.fillzero();
-#endif
 		
 	INDEXTYPE flops = 2 * nnz;
 	cout << "generating vectors... " << endl;
@@ -234,14 +224,14 @@ int main(int argc, char* argv[])
 	Spvec<VALUETYPE, INDEXTYPE> y_csc(m);
 	y_csc.fillzero();
 	y_bicsb.fillzero();
-	x.fillfota();
+	x.fillrandom();
 	
 	cout << "starting SpMV ... " << endl;
 	cout << "Row imbalance is: " << RowImbalance(bicsb) << endl;
+	cout << "Col imbalance is: " << ColImbalance(bicsb) << endl;
 	timer_init();
 
 	bicsb_gespmv<PTDD>(bicsb, x.getarr(), y_bicsb.getarr());
-
 	double t0 = timer_seconds_since_init();
 	for(int i=0; i < REPEAT; ++i)
 	{
@@ -254,35 +244,29 @@ int main(int argc, char* argv[])
 	cout<< "BiCSB" << " mflop/sec: " << flops  / (1000000 * time) <<endl;
 
 	/*************************************************************/
-#ifndef NOBM
-	cout << "starting SpMV with BmCSB ... " << endl;
-	cout << "Row imbalance is: " << RowImbalance(bmcsb) << endl;
 
-	prescantime = 0;
-	bmcsb_gespmv(bmcsb, x.getarr(), y_bmcsb.getarr());
-	prescantime = 0;
+	cout << "starting SpMV_T" << endl;
+	Spvec<VALUETYPE, INDEXTYPE> xt(m);
+	Spvec<VALUETYPE, INDEXTYPE> yt_bicsb(n);
+	Spvec<VALUETYPE, INDEXTYPE> yt_csc (n);
+	yt_csc.fillzero();
+	yt_bicsb.fillzero();
+	xt.fillrandom();
 
+	bicsb_gespmvt<PTDD>(bicsb, xt.getarr(), yt_bicsb.getarr());		// dummy computation	
 	t0 = timer_seconds_since_init();
 	for(int i=0; i < REPEAT; ++i)
 	{
-		bmcsb_gespmv(bmcsb, x.getarr(), y_bmcsb.getarr());
+		bicsb_gespmvt<PTDD>(bicsb, xt.getarr(), yt_bicsb.getarr());
 	}
 	t1 = timer_seconds_since_init();
-
-	double bmtime = ((t1-t0)/REPEAT) - (prescantime/REPEAT);
-	cout<< "BmCSB" << " time: " << bmtime << " seconds" <<endl;
-	cout<< "BmCSB" << " mflop/sec: " <<  (flops * UNROLL) / (1000000 * bmtime) <<endl;
-
-#ifdef BWTEST
-	transform(y_bmcsb.getarr(), y_bmcsb.getarr() + m, y_bmcsb.getarr(), bind2nd(divides<double>(), static_cast<double>(UNROLL)));
-	cout << "Mega register blocks per second: " << (bmcsb.numregb() * UNROLL) / (1000000 * bmtime) << endl;
-#endif	// BWTEST
-	cout<< "Prescan time: " << (prescantime/REPEAT)  << " seconds" <<endl;
-#endif	// NOBM
-
+	
+	time = (t1-t0)/REPEAT;
+	cout<< "BiCSB Trans" << " time: " << time << " seconds" <<endl;
+	cout<< "BiCSB Trans" << " mflop/sec: " << flops  / (1000000 * time) <<endl;
+	
 	// Verify with CSC (serial)
 	y_csc += (*csc) * x;
-        
 	t0 = timer_seconds_since_init();
 	for(int i=0; i < REPEAT; ++i)
 	{
@@ -291,12 +275,25 @@ int main(int argc, char* argv[])
 	t1 = timer_seconds_since_init();
 	double csctime = (t1-t0)/REPEAT;
 	cout<< "CSC" << " time: " << csctime << " seconds" <<endl;
-    cout<< "CSC" << " mflop/sec: " << flops / (1000000 * csctime) <<endl;
+    	cout<< "CSC" << " mflop/sec: " << flops / (1000000 * csctime) <<endl;
 
 	Verify(y_csc, y_bicsb, "BiCSB", m);
-#ifndef NOBM
-	Verify(y_csc, y_bmcsb, "BmCSB", m);
-#endif
+	
+	/******************************/
+	
+	csc_gaxpy_trans ( *csc, xt.getarr(), yt_csc.getarr());
+	t0 = timer_seconds_since_init();
+	for(int i=0; i < REPEAT; ++i)
+	{
+		csc_gaxpy_trans ( *csc, xt.getarr(), yt_csc.getarr());
+	}
+	t1 = timer_seconds_since_init();
+	time = (t1-t0)/REPEAT;
+	cout <<"Transposed CSC time: " << time << " seconds" << endl;
+	cout <<"Transposed CSC mflop/sec: " << flops/ (1000000 * time) << endl;
+	
+	Verify(yt_csc, yt_bicsb, "BiCSB", n);	// inside Spvec.cpp	
+	
 	delete csc;
 }
 

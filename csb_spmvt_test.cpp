@@ -1,28 +1,24 @@
 #define NOMINMAX
 #include <iostream> 
 #include <algorithm>
-#include <numeric>
 #include <functional>
 #include <fstream>
 #include <ctime>
 #include <cmath>
 #include <string>
 
-#include "timer.gettimeofday.c"
 #include "cilk_util.h"
 #include "utility.h"
 
 #include "triple.h"
 #include "csc.h"
 #include "bicsb.h"
-#include "bmcsb.h"
 #include "spvec.h"
-#include "Semirings.h"
 
 using namespace std;
 
 #define INDEXTYPE uint32_t
-#define VALUETYPE float
+#define VALUETYPE double
 
 /* Alternative native timer (wall-clock):
  *	timeval tim;		
@@ -30,9 +26,11 @@ using namespace std;
  *	double t1=tim.tv_sec+(tim.tv_usec/1000000.0);
  */
 
+INDEXTYPE flops;
+
 int main(int argc, char* argv[])
 {
-#ifndef CILK_STUB
+#ifndef	CILK_STUB
 	int gl_nworkers = __cilkrts_get_nworkers();
 #else
 	int gl_nworkers = 0;
@@ -44,19 +42,19 @@ int main(int argc, char* argv[])
 	string inputname;
 	if(argc < 2)
 	{
-		cout << "Normal usage: ./a.out inputmatrix.mtx sym/nosym binary/text triples/csc" << endl;
+		cout << "Normal usage: ./parspmvt inputmatrix.mtx sym/nosym binary/text triples/csc" << endl;
 		cout << "Assuming matrix.txt is the input, matrix is unsymmetric, and stored in text(ascii) file" << endl;
 		inputname = "matrix.txt";
 	}
 	else if(argc < 3)
 	{
-		cout << "Normal usage: ./a.out inputmatrix.mtx sym/nosym binary/text triples/csc" << endl;
+		cout << "Normal usage: ./parspmvt inputmatrix.mtx sym/nosym binary/text triples/csc" << endl;
 		cout << "Assuming that the matrix is unsymmetric, and stored in text(ascii) file" << endl;
 		inputname =  argv[1];
 	}
 	else if(argc < 4)
 	{
-		cout << "Normal usage: ./a.out inputmatrix.mtx sym/nosym binary/text triples/csc" << endl;
+		cout << "Normal usage: ./parspmvt inputmatrix.mtx sym/nosym binary/text triples/csc" << endl;
 		cout << "Assuming matrix is stored in text(ascii) file" << endl;
 		inputname =  argv[1];
 		string issym(argv[2]);
@@ -85,7 +83,7 @@ int main(int argc, char* argv[])
 			binary = true;
 		else
 			cout << "unrecognized option, assuming text file" << endl;
-	
+
 		if(argc > 4)
 		{
 			string type(argv[4]);
@@ -97,13 +95,12 @@ int main(int argc, char* argv[])
 		}
 			
 		if(argc == 6)
-			forcelogbeta = atoi(argv[5]);
+			forcelogbeta = atoi(argv[4]);
 	}
-
 	typedef PTSR<VALUETYPE,VALUETYPE> PTDD;		
-	Csc<VALUETYPE, INDEXTYPE> * csc;
 	if(binary)
 	{
+		Csc<VALUETYPE, INDEXTYPE> * csc;
 		FILE * f = fopen(inputname.c_str(), "r");
 		if(!f)
 		{
@@ -113,8 +110,8 @@ int main(int argc, char* argv[])
 		if(iscsc)
 		{
 			fread(&n, sizeof(INDEXTYPE), 1, f);
-            fread(&m, sizeof(INDEXTYPE), 1, f);
-            fread(&nnz, sizeof(INDEXTYPE), 1, f);
+                        fread(&m, sizeof(INDEXTYPE), 1, f);
+                        fread(&nnz, sizeof(INDEXTYPE), 1, f);
 		}
 		else
 		{
@@ -177,6 +174,54 @@ int main(int argc, char* argv[])
 			delete [] rowindices;
 			delete [] vals;
 		}
+
+	        BiCsb<VALUETYPE, INDEXTYPE> bicsb(*csc, gl_nworkers);
+	
+		flops = 2 * nnz;
+
+		cout << "# workers: "<< gl_nworkers << endl;
+		cout << "generating vectors... " << endl;
+		cout << "Starting SpMV_T..." << endl;		
+		cout << "Col imbalance is: " << ColImbalance(bicsb) << endl;
+
+
+		Spvec<VALUETYPE, INDEXTYPE> xt(m);
+		Spvec<VALUETYPE, INDEXTYPE> yt_bicsb(n);
+		Spvec<VALUETYPE, INDEXTYPE> yt_csc (n);
+		yt_csc.fillzero();
+		yt_bicsb.fillzero();
+		xt.fillrandom();
+	
+		bicsb_gespmvt<PTDD>(bicsb, xt.getarr(), yt_bicsb.getarr());		// dummy computation
+	
+		long t0 = cilk_get_time();	// start timer
+		for(int i=0; i < REPEAT; ++i)
+		{
+			bicsb_gespmvt<PTDD>(bicsb, xt.getarr(), yt_bicsb.getarr());
+		}
+		long t1 = cilk_get_time();	// get the wall-clock time
+
+		long time = (t1-t0)/REPEAT;
+		cout<< "BiCSB Trans" << " time: " << ((double) time) /1000 << " seconds" <<endl;
+		cout<< "BiCSB Trans" << " mflop/sec: " << flops / (1000 * (double) time) <<endl;
+		
+		csc_gaxpy_trans ( *csc, xt.getarr(), yt_csc.getarr());
+	        t0 = cilk_get_time();
+        	for(int i=0; i < REPEAT; ++i)
+        	{
+                	csc_gaxpy_trans ( *csc, xt.getarr(), yt_csc.getarr());
+        	}
+        	t1 = cilk_get_time();
+        	time = (t1-t0)/REPEAT;
+        	cout <<"Transposed CSC time: " << ((double) time) / 1000 << " seconds" << endl;
+	        cout <<"Transposed CSC mflop/sec: " << flops/ (1000 * (double) time) << endl;
+
+		Verify(yt_csc, yt_bicsb, "BiCSB", n);	// inside Spvec.cpp
+#ifdef STATS
+		ofstream stats("stats.txt");
+		bicsb.PrintStats(stats);
+		stats.close();
+#endif
 	}
 	else
 	{
@@ -191,6 +236,7 @@ int main(int argc, char* argv[])
 		}
 		infile.unget();
 		infile >> m >> n >> nnz;	// #{rows}-#{cols}-#{nonzeros}
+		flops = 2*nnz;	
 
 		long tstart = cilk_get_time();	// start timer	
 		Triple<VALUETYPE, INDEXTYPE> * triples = new Triple<VALUETYPE, INDEXTYPE>[nnz];
@@ -210,93 +256,50 @@ int main(int argc, char* argv[])
 		long tend = cilk_get_time();	// end timer	
 		cout<< "Reading matrix in ascii took " << ((double) (tend-tstart)) /1000 << " seconds" <<endl;
 	
-		cout << "converting to csc ... " << endl;
-		csc= new Csc<VALUETYPE,INDEXTYPE>(triples, nnz, m, n);
+		cout << "converting to csc and bicsb... " << endl;
+		Csc<VALUETYPE, INDEXTYPE> csc(triples, nnz, m, n);
 		delete [] triples;
-	}
 
-	cout << "# workers: "<< gl_nworkers << endl;
-	BiCsb<VALUETYPE, INDEXTYPE> bicsb(*csc, gl_nworkers);
-	// BiCsb<bool, INDEXTYPE> bin_csb(*csc, gl_nworkers);
-
-#ifndef NOBM
-	BmCsb<VALUETYPE, INDEXTYPE, RBDIM> bmcsb(*csc, gl_nworkers);
-	ofstream stats("stats.txt");	
-	bmcsb.PrintStats(stats);
-	Spvec<VALUETYPE, INDEXTYPE> y_bmcsb(m);
-	y_bmcsb.fillzero();
-#endif
-		
-	INDEXTYPE flops = 2 * nnz;
-	cout << "generating vectors... " << endl;
-	Spvec<VALUETYPE, INDEXTYPE> x(n);
-	Spvec<VALUETYPE, INDEXTYPE> y_bicsb(m);
-	Spvec<VALUETYPE, INDEXTYPE> y_csc(m);
-	y_csc.fillzero();
-	y_bicsb.fillzero();
-	x.fillfota();
+		BiCsb<VALUETYPE, INDEXTYPE> bicsb(csc, gl_nworkers);
+		cout << "# workers: "<< gl_nworkers << endl;
+		cout << "generating vectors... " << endl;
+		cout << "starting matvecs... " << endl;
 	
-	cout << "starting SpMV ... " << endl;
-	cout << "Row imbalance is: " << RowImbalance(bicsb) << endl;
-	timer_init();
+		Spvec<VALUETYPE, INDEXTYPE> xt(m);
+		Spvec<VALUETYPE, INDEXTYPE> yt_csc(n);
+		Spvec<VALUETYPE, INDEXTYPE> yt_bicsb(n);
+		yt_csc.fillzero();
+		yt_bicsb.fillzero();
+		xt.fillrandom();
+	
+		csc_gaxpy_trans(csc, xt.getarr(), yt_csc.getarr());		// dummy computation
+	
+		long t0 = cilk_get_time();	// start timer
+		for(int i=0; i < REPEAT; ++i)
+		{
+			csc_gaxpy_trans(csc, xt.getarr(), yt_csc.getarr());
+		}
+		long t1 = cilk_get_time();	// get the wall-clock time
 
-	bicsb_gespmv<PTDD>(bicsb, x.getarr(), y_bicsb.getarr());
+		long time = (t1-t0)/REPEAT;
+		cout<< "CSC Trans" << " time: " << ((double) time) /1000 << " seconds" <<endl;
+		cout<< "CSC Trans" << " mflop/sec: " << flops / (1000 * (double) time) <<endl;
+	
+		bicsb_gespmvt<PTDD>(bicsb, xt.getarr(), yt_bicsb.getarr());		// dummy computation
 
-	double t0 = timer_seconds_since_init();
-	for(int i=0; i < REPEAT; ++i)
-	{
-		bicsb_gespmv<PTDD>(bicsb, x.getarr(), y_bicsb.getarr());
-	}
-	double t1 = timer_seconds_since_init();
+		t0 = cilk_get_time();	// start timer
+		for(int i=0; i < REPEAT; ++i)
+		{
+			bicsb_gespmvt<PTDD>(bicsb, xt.getarr(), yt_bicsb.getarr());
+		}
+		t1 = cilk_get_time();	// get the wall-clock time
 
-	double time = (t1-t0)/REPEAT;
-	cout<< "BiCSB" << " time: " << time << " seconds" <<endl;
-	cout<< "BiCSB" << " mflop/sec: " << flops  / (1000000 * time) <<endl;
-
-	/*************************************************************/
-#ifndef NOBM
-	cout << "starting SpMV with BmCSB ... " << endl;
-	cout << "Row imbalance is: " << RowImbalance(bmcsb) << endl;
-
-	prescantime = 0;
-	bmcsb_gespmv(bmcsb, x.getarr(), y_bmcsb.getarr());
-	prescantime = 0;
-
-	t0 = timer_seconds_since_init();
-	for(int i=0; i < REPEAT; ++i)
-	{
-		bmcsb_gespmv(bmcsb, x.getarr(), y_bmcsb.getarr());
-	}
-	t1 = timer_seconds_since_init();
-
-	double bmtime = ((t1-t0)/REPEAT) - (prescantime/REPEAT);
-	cout<< "BmCSB" << " time: " << bmtime << " seconds" <<endl;
-	cout<< "BmCSB" << " mflop/sec: " <<  (flops * UNROLL) / (1000000 * bmtime) <<endl;
-
-#ifdef BWTEST
-	transform(y_bmcsb.getarr(), y_bmcsb.getarr() + m, y_bmcsb.getarr(), bind2nd(divides<double>(), static_cast<double>(UNROLL)));
-	cout << "Mega register blocks per second: " << (bmcsb.numregb() * UNROLL) / (1000000 * bmtime) << endl;
-#endif	// BWTEST
-	cout<< "Prescan time: " << (prescantime/REPEAT)  << " seconds" <<endl;
-#endif	// NOBM
-
-	// Verify with CSC (serial)
-	y_csc += (*csc) * x;
-        
-	t0 = timer_seconds_since_init();
-	for(int i=0; i < REPEAT; ++i)
-	{
-	    	y_csc += (*csc) * x;
-	}
-	t1 = timer_seconds_since_init();
-	double csctime = (t1-t0)/REPEAT;
-	cout<< "CSC" << " time: " << csctime << " seconds" <<endl;
-    cout<< "CSC" << " mflop/sec: " << flops / (1000000 * csctime) <<endl;
-
-	Verify(y_csc, y_bicsb, "BiCSB", m);
-#ifndef NOBM
-	Verify(y_csc, y_bmcsb, "BmCSB", m);
-#endif
-	delete csc;
+		time = (t1-t0)/REPEAT;
+		cout<< "BiCSB Trans" << " time: " << ((double) time) /1000 << " seconds" <<endl;
+		cout<< "BiCSB Trans" << " mflop/sec: " << flops / (1000 * (double) time) <<endl;
+	
+		Verify(yt_csc, yt_bicsb, "BiCSB", n);	// inside Spvec.cpp
+		return 0;
+	}	
 }
 

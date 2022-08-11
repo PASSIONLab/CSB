@@ -38,8 +38,28 @@ public:
 private:
 	void Init(int workers, IT forcelogbeta = 0);
 
+	template <typename SR, typename RHS, typename LHS>	
+	void SubSpMV(IT * btop, IT bstart, IT bend, const RHS * __restrict x, LHS * __restrict suby) const;
+
+	template <typename SR, typename RHS, typename LHS>	
+	void SubSpMVTrans(IT col, IT rowstart, IT rowend, const RHS * __restrict x, LHS * __restrict suby) const;
+    
     template <typename SR, typename RHS, typename LHS>
-    void SubSpMV(IT * btop, IT bstart, IT bend, const RHS * __restrict x, LHS * __restrict suby) const;
+    void SubSpMVTrans(const vector< tuple<IT,IT,IT> > & chunk, const RHS * __restrict x, LHS * __restrict suby) const;
+
+	template <typename SR, typename RHS, typename LHS>
+	void BMult(IT** chunks, IT start, IT end, const RHS * __restrict x, LHS * __restrict y, IT ysize) const;
+
+	template <typename SR, typename RHS, typename LHS>	
+	void BTransMult(vector< vector< tuple<IT,IT,IT> > * > & chunks, IT start, IT end, const RHS * __restrict x, LHS * __restrict y, IT ysize) const;
+
+	template <typename SR, typename RHS, typename LHS>	
+	void BlockPar(IT start, IT end, const RHS * __restrict subx, LHS * __restrict suby, 
+					IT rangebeg, IT rangeend, IT cutoff) const;
+
+	template <typename SR, typename RHS, typename LHS>	
+	void BlockParT(IT start, IT end, const RHS * __restrict subx, LHS * __restrict suby, 
+					IT rangebeg, IT rangeend, IT cutoff) const;
 
 	void SortBlocks(pair<IT, pair<IT,IT> > * pairarray, NT * val);
 
@@ -68,8 +88,11 @@ private:
 
 	MortonCompare<IT> mortoncmp;	// comparison operator w.r.t. the N-morton layout
 
-    template <typename SR, typename NU, typename IU, typename RHS, typename LHS>
-    friend void bicsb_gespmv (const BiCsb<NU, IU> & A, const RHS * x, LHS * y);
+	template <typename SR, typename NU, typename IU, typename RHS, typename LHS>
+	friend void bicsb_gespmv (const BiCsb<NU, IU> & A, const RHS * x, LHS * y);
+
+	template <typename SR, typename NU, typename IU, typename RHS, typename LHS>
+	friend void bicsb_gespmvt (const BiCsb<NU, IU> & A, const RHS * __restrict x, LHS * __restrict y);
 
 	template <class CSB>
 	friend float RowImbalance(const CSB & A);	// just befriend the BiCsb instantiation
@@ -103,9 +126,29 @@ public:
 
 private:
 	void Init(int workers, IT forcelogbeta = 0);
+
+	template <typename SR, typename RHS, typename LHS>
+	void SubSpMV(IT * btop, IT bstart, IT bend, const RHS * __restrict x, LHS * __restrict suby) const;
+
+	template <typename SR, typename RHS, typename LHS>	
+	void SubSpMVTrans(IT col, IT rowstart, IT rowend, const RHS * __restrict x, LHS * __restrict suby) const;
     
     template <typename SR, typename RHS, typename LHS>
-    void SubSpMV(IT * btop, IT bstart, IT bend, const RHS * __restrict x, LHS * __restrict suby) const;
+    void SubSpMVTrans(const vector< tuple<IT,IT,IT> > & chunk, const RHS * __restrict x, LHS * __restrict suby) const;
+
+	template <typename SR, typename RHS, typename LHS>	
+	void BMult(IT ** chunks, IT start, IT end, const RHS * __restrict x, LHS * __restrict y, IT ysize) const;
+
+	template <typename SR, typename RHS, typename LHS>		
+	void BTransMult(vector< vector< tuple<IT,IT,IT> > * > & chunks, IT start, IT end, const RHS * __restrict x, LHS * __restrict y, IT ysize) const;
+
+	template <typename SR, typename RHS, typename LHS>		
+	void BlockPar(IT start, IT end, const RHS * __restrict subx, LHS * __restrict suby, 
+					IT rangebeg, IT rangeend, IT cutoff) const;
+	
+	template <typename SR, typename RHS, typename LHS>		
+	void BlockParT(IT start, IT end, const RHS * __restrict subx, LHS * __restrict suby, 
+					IT rangebeg, IT rangeend, IT cutoff) const;
 
 	void SortBlocks(pair<IT, pair<IT,IT> > * pairarray);
 
@@ -132,10 +175,13 @@ private:
 	IT lowcolmask;
 
 	MortonCompare<IT> mortoncmp;	// comparison operator w.r.t. the N-morton layout
-    
-    template <typename SR, typename NU, typename IU, typename RHS, typename LHS>
-    friend void bicsb_gespmv (const BiCsb<NU, IU> & A, const RHS * __restrict x, LHS * __restrict y);
-    
+
+	template <typename SR, typename NU, typename IU, typename RHS, typename LHS>
+	friend void bicsb_gespmv (const BiCsb<NU, IU> & A, const RHS * __restrict x, LHS * __restrict y);
+
+	template <typename SR, typename NU, typename IU, typename RHS, typename LHS>
+	friend void bicsb_gespmvt (const BiCsb<NU, IU> & A, const RHS * __restrict x, LHS * __restrict y);
+
 	template <class CSB>
 	friend float RowImbalance(const CSB & A);	// befriend any CSB instantiation	
 

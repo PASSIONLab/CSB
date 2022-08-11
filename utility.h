@@ -16,6 +16,12 @@
 
 using namespace std;
 
+#include <cilk/cilk_api.h>
+#include <cilk/cilk.h>
+#define SYNCHED __cilkrts_synched()
+#define DETECT __cilkscreen_enable_checking()
+#define ENDDETECT __cilkscreen_disable_checking()
+#define WORKERS __cilkrts_get_nworkers()
 
 #ifdef BWTEST
 	#define UNROLL 100
@@ -27,8 +33,16 @@ using namespace std;
 #ifdef __cplusplus
 extern "C" {
 #endif
+/*
+ * __cilkrts_synched
+ *
+ * Allows an application to determine if there are any outstanding
+ * children at this instant. This function will examine the current
+ * full frame to determine this.
+ */
 
-
+CILK_EXPORT __CILKRTS_NOTHROW
+int __cilkrts_synched(void);
 
 #ifdef __cplusplus
 } // extern "C"
@@ -38,6 +52,12 @@ extern "C" {
 #define __cilkrts_synched() (1)
 #endif /* CILK_STUB */
 
+#ifdef STATS
+	#include <cilk/reducer_opadd.h>
+	cilk::reducer_opadd<__int64> blockparcalls;
+	cilk::reducer_opadd<__int64> subspmvcalls;
+	cilk::reducer_opadd<__int64> atomicflops;
+#endif
 
 void * address;
 void * base;
@@ -178,7 +198,7 @@ unsigned prescan(unsigned * a, MTYPE * const M, int n)
 		int numthreads = SLACKNESS*WORKERS;
 		thread_data * thdatas = new thread_data[numthreads];
 		unsigned share = _n/numthreads;
-		for(int t=0; t < numthreads; ++t)
+		cilk_for(int t=0; t < numthreads; ++t)
 		{
 			popcountall(_M+t*share, _a+t*share, ((t+1)==numthreads)?(_n-t*share):share);
 			thdatas[t].sum = 0;
@@ -192,7 +212,7 @@ unsigned prescan(unsigned * a, MTYPE * const M, int n)
 			thdatas[t].sum = sum;
 			sum += temp;
 		}
-		for(int tt=0; tt<numthreads; ++tt)
+		cilk_for(int tt=0; tt<numthreads; ++tt)
 		{				
 			unsigned * beg = thdatas[tt].beg;
 			unsigned * end = thdatas[tt].end;	
