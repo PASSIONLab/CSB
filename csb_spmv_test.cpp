@@ -12,6 +12,11 @@
 #include "cilk_util.h"
 #include "utility.h"
 
+#ifndef RHSDIM
+	#define RHSDIM 16
+#endif
+#define ALIGN 32
+
 #include "triple.h"
 #include "csc.h"
 #include "bicsb.h"
@@ -32,7 +37,7 @@ using namespace std;
 
 int main(int argc, char* argv[])
 {
-#ifndef CILK_STUB
+#if CILK==1
 	int gl_nworkers = __cilkrts_get_nworkers();
 #else
 	int gl_nworkers = 0;

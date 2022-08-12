@@ -1,55 +1,75 @@
-CILK = /opt/intel/composer_xe_2013.5.198/compiler
-INCADD = -I$(CILK)/include -I$(CILK)/examples/include
-LIBADD = -L$(CILK)/lib/intel64
+CILK?=0
+NATIVE?=1
+OPT?=3
+SANITIZE?=0
 
-GCCOPT = -O2 -fno-rtti -fno-exceptions # -ftree-vectorize
-INTELOPT = -O2 -no-ipo -fno-rtti -fno-exceptions -parallel -restrict -std=c++11 -xAVX -no-prec-div #-fno-inline-functions
-DEB = -g -DNOBM -O0 -parallel -restrict -std=c++11 
+CFLAGS := -Wall -Wextra -O$(OPT) -g  -std=c++20 -gdwarf-4 -fno-exceptions -Wno-unknown-pragmas -Wno-comment
+
+ifeq ($(NATIVE),1)
+CFLAGS += -march=native
+endif
+
+ifeq ($(CILK),1)
+CFLAGS += -fopencilk
+endif
+
+ifeq ($(SANITIZE),1)
+ifeq ($(CILK),1)
+CFLAGS += -fsanitize=cilk,undefined,address -fno-omit-frame-pointer
+else
+CFLAGS += -fsanitize=undefined,address -fno-omit-frame-pointer
+endif
+endif
+
+DEFINES := -DCILK=$(CILK)
+
+all: parspmv both_d spmm_dall spmm_a spmm_sall
+
 
 seqsym: sym_spmv_test.cpp csbsym.cpp csbsym.h utility.h friends.h SSEspmv.o
-	icpc -cilk-serialize $(INCADD) $(INTELOPT) -o seqsym sym_spmv_test.cpp SSEspmv.o
+	$(CXX) $(CFLAGS) $(DEFINES) -o seqsym sym_spmv_test.cpp SSEspmv.o
 
 parsym: sym_spmv_test.cpp csbsym.cpp csbsym.h utility.h friends.h SSEspmv.o
-	icpc $(INCADD) $(DEB) -o parsym sym_spmv_test.cpp SSEspmv.o 
+	$(CXX) $(CFLAGS) $(DEFINES) -o parsym sym_spmv_test.cpp SSEspmv.o 
 
 symanal: sym_spmv_test.cpp csbsym.cpp csbsym.h utility.h friends.h SSEspmv.o
-	icpc -DSTATS $(INCADD) $(INTELOPT) -o symanal sym_spmv_test.cpp SSEspmv.o -lcilkutil
+	$(CXX) $(CFLAGS) $(DEFINES) -o symanal sym_spmv_test.cpp SSEspmv.o
 
 seqspmv: csb_spmv_test.cpp bicsb.cpp bicsb.h bmcsb.cpp bmcsb.h friends.h utility.h SSEspmv.o
-	icpc -cilk-serialize $(INCADD) $(INTELOPT) -o seqspmv csb_spmv_test.cpp SSEspmv.o
+	$(CXX) $(CFLAGS) $(DEFINES) -o seqspmv csb_spmv_test.cpp SSEspmv.o
 
 parspmv: csb_spmv_test.cpp bicsb.cpp bicsb.h bmcsb.cpp bmcsb.h friends.h utility.h SSEspmv.o 
-	icpc $(INCADD) $(INTELOPT) -o parspmv csb_spmv_test.cpp SSEspmv.o
+	$(CXX) $(CFLAGS) $(DEFINES) -o parspmv csb_spmv_test.cpp SSEspmv.o
 
 parspmv_nobm: csb_spmv_test.cpp bicsb.cpp bicsb.h friends.h utility.h
-	icpc $(INCADD) $(INTELOPT) -DNOBM -o parspmv_nobm csb_spmv_test.cpp
+	$(CXX) $(CFLAGS) $(DEFINES) -DNOBM -o parspmv_nobm csb_spmv_test.cpp
 
 parspmvt: csb_spmvt_test.cpp bicsb.cpp bicsb.h utility.h friends.h
-	icpc $(INCADD) $(INTELOPT) -o parspmvt csb_spmvt_test.cpp
+	$(CXX) $(CFLAGS) $(DEFINES) -o parspmvt csb_spmvt_test.cpp
 
 both_d:	both_test.cpp bicsb.cpp bicsb.h utility.h friends.h
-	icpc $(INCADD) $(INTELOPT) -o both_d both_test.cpp
+	$(CXX) $(CFLAGS) $(DEFINES) -o both_d both_test.cpp
 
 both_s:	both_test.cpp bicsb.cpp bicsb.h utility.h friends.h
-	icpc $(INCADD) $(INTELOPT) -DSINGLEPRECISION -o both_s both_test.cpp
+	$(CXX) $(CFLAGS) $(DEFINES) -DSINGLEPRECISION -o both_s both_test.cpp
 
 spmm_dall:	spmm_test.cpp bicsb.cpp bicsb.h utility.h friends.h
 	for number in 4 8 12 16 24 32 40 48 56 64; do \
-		echo "icpc $(INCADD) $(INTELOPT) -DRHSDIM=$$number -o spmm_d$$number spmm_test.cpp"; \
-		icpc $(INCADD) $(INTELOPT) -DRHSDIM=$$number -o spmm_d$$number spmm_test.cpp; \
+		echo "$(CXX) $(CFLAGS) $(DEFINES) -DRHSDIM=$$number -o spmm_d$$number spmm_test.cpp"; \
+		$(CXX) $(CFLAGS) $(DEFINES) -DRHSDIM=$$number -o spmm_d$$number spmm_test.cpp; \
 	done;
 
 spmm_a:	spmm_test.cpp bicsb.cpp bicsb.h utility.h friends.h
-	icpc $(INCADD) $(INTELOPT) -DSINGLEPRECISION -S -fcode-asm -vec_report6 spmm_test.cpp
+	$(CXX) $(CFLAGS) $(DEFINES) -DSINGLEPRECISION -S -fcode-asm -vec_report6 spmm_test.cpp
 
 spmm_sall:	spmm_test.cpp bicsb.cpp bicsb.h utility.h friends.h
 	for number in 4 8 12 16 24 32 40 48 56 64; do \
-		echo "icpc $(INCADD) $(INTELOPT) -DSINGLEPRECISION -DRHSDIM=$$number -o spmm_s$$number spmm_test.cpp"; \
-		icpc $(INCADD) $(INTELOPT) -DSINGLEPRECISION -DRHSDIM=$$number -o spmm_s$$number spmm_test.cpp; \
+		echo "$(CXX) $(CFLAGS) $(DEFINES) -DSINGLEPRECISION -DRHSDIM=$$number -o spmm_s$$number spmm_test.cpp"; \
+		$(CXX) $(CFLAGS) $(DEFINES) -DSINGLEPRECISION -DRHSDIM=$$number -o spmm_s$$number spmm_test.cpp; \
 	done;
 
 SSEspmv.o: SSEspmv.cpp
-	g++ -DAMD $(GCCOPT) -march=amdfam10 -c SSEspmv.cpp	
+	$(CXX) $(CFLAGS) $(DEFINES) -c SSEspmv.cpp	
 
 clean:	
 	rm -f seqspmv

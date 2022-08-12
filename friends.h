@@ -35,7 +35,7 @@ void bmcsb_gespmv (const BmCsb<NT, IT, TTDIM> & A, const NT * __restrict x, NT *
 	double t0 = timer_seconds_since_init();
 	
 	unsigned * scansum = new unsigned[A.nrb];
-	unsigned sum = prescan(scansum, A.masks, A.nrb);
+	[[maybe_unused]] unsigned sum = prescan(scansum, A.masks, A.nrb);
 	
 	double t1 = timer_seconds_since_init();
 	prescantime += (t1-t0);
@@ -128,14 +128,15 @@ void bicsb_gespmv (const BiCsb<NT, IT> & A, const RHS * __restrict x, LHS * __re
 				IT thsh = BREAKEVEN * ysize;
 				vector<IT*> chunks;
 				chunks.push_back(btop);
-				for(IT j =0; j < A.nbc; )
+				for(IT j =0; j < A.nbc-1; )
 				{
 					IT count = btop[j+1] - btop[j];
 					if(count < thsh && j < A.nbc)
 					{
-						while(count < thsh && j < A.nbc)
+						while(count < thsh && j < A.nbc-1)
 						{
-							count += btop[(++j)+1] - btop[j]; 
+							j+=1;
+							count += btop[j+1] - btop[j]; 
 						}
 						chunks.push_back(btop+j);	// push, but exclude the block that caused the overflow
 					}

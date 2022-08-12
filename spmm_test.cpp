@@ -105,12 +105,12 @@ void VerifyMM (vector< array<NT,DIM>, ALLOC > & control, vector< array<NT,DIM>, 
 
 int main(int argc, char* argv[])
 {
-#ifndef CILK_STUB
+#if CILK==1
 	int gl_nworkers = __cilkrts_get_nworkers();
 #else
 	int gl_nworkers = 0;
 #endif
-	bool syminput = false;
+	[[maybe_unused]] bool syminput = false;
 	bool binary = false;
 	bool iscsc = false;
 	INDEXTYPE m = 0, n = 0, nnz = 0, forcelogbeta = 0;

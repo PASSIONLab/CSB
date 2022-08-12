@@ -15,7 +15,7 @@ template <class T, class ITYPE>
 class Csc
 {
 public:
-	Csc ():nz(0), m(0), n(0), logicalnz(0), issym(false) {}				// default constructor
+	Csc (): issym(false), logicalnz(0), nz(0), m(0), n(0) {}				// default constructor
 	Csc (ITYPE size,ITYPE rows, ITYPE cols, bool isSym=false);
 	Csc (const Csc<T, ITYPE> & rhs);		// copy constructor
 	~Csc();

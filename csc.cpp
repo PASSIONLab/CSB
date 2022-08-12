@@ -98,7 +98,7 @@ Csc<T,ITYPE>::~Csc()
 // (a) triples only contain the upper triangular part, or (b) the whole matrix
 template <class T, class ITYPE>
 Csc<T,ITYPE>::Csc(Triple<T, ITYPE> * triples, ITYPE size, ITYPE rows, ITYPE cols, bool isSym)
-:nz(size),m(rows),n(cols),issym(isSym)
+:issym(isSym), nz(size),m(rows),n(cols)
 {
 	// Constructing empty Csc objects (size = 0) are not allowed.
 	assert(size != 0 && n != 0);
@@ -174,7 +174,7 @@ Csc<T,ITYPE>::Csc(Triple<T, ITYPE> * triples, ITYPE size, ITYPE rows, ITYPE cols
 // Construct a Csc object from parallel arrays
 template <class T, class ITYPE>
 Csc<T,ITYPE>::Csc(ITYPE * ri, ITYPE * ci, T * val, ITYPE size, ITYPE rows, ITYPE cols, bool isSym)
-:nz(size),m(rows),n(cols),issym(isSym)
+:issym(isSym),nz(size),m(rows),n(cols)
 {
 	// Constructing empty Csc objects (size = 0) are not allowed.
 	assert(size != 0 && n != 0);

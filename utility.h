@@ -16,12 +16,21 @@
 
 using namespace std;
 
+#if CILK==1
 #include <cilk/cilk_api.h>
 #include <cilk/cilk.h>
 #define SYNCHED __cilkrts_synched()
 #define DETECT __cilkscreen_enable_checking()
 #define ENDDETECT __cilkscreen_disable_checking()
 #define WORKERS __cilkrts_get_nworkers()
+#else
+#define cilk_for for
+#define cilk_sync
+#define cilk_spawn 
+#define SYNCHED (true)
+#define WORKERS (1)
+#endif
+
 
 #ifdef BWTEST
 	#define UNROLL 100
@@ -29,7 +38,7 @@ using namespace std;
 	#define UNROLL 1
 #endif
 
-#ifndef CILK_STUB
+#if CILK==1
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -41,16 +50,15 @@ extern "C" {
  * full frame to determine this.
  */
 
-CILK_EXPORT __CILKRTS_NOTHROW
-int __cilkrts_synched(void);
+#define __cilkrts_synched() (0)
 
 #ifdef __cplusplus
 } // extern "C"
 #endif
-#else /* CILK_STUB */
+#else /* CILK==1 */
 /* Stubs for the api functions */
 #define __cilkrts_synched() (1)
-#endif /* CILK_STUB */
+#endif /* CILK */
 
 #ifdef STATS
 	#include <cilk/reducer_opadd.h>
@@ -96,7 +104,7 @@ const unsigned char masktable4[4] = { 0x08, 0x04, 0x02, 0x01 };	// mask for 2x2 
 
 
 template <typename MTYPE>
-MTYPE GetMaskTable(unsigned int index)
+MTYPE GetMaskTable([[maybe_unused]] unsigned int index)
 {
 	return 0;
 } 
@@ -501,6 +509,12 @@ inline unsigned int getDivident(unsigned int n, unsigned int d)
 	while((d = d >> 1))
 		n = n >> 1;
 	return n;
+}
+
+[[maybe_unused]] static long get_time() {
+  struct timeval st;
+  gettimeofday(&st, NULL);
+  return st.tv_sec * 1000000 + st.tv_usec;
 }
 
 #endif
