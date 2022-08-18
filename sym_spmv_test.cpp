@@ -10,7 +10,11 @@
 
 #include "utility"
 #include "timer.gettimeofday.c"
-#include "cilk_util.h"
+
+#ifndef RHSDIM
+	#define RHSDIM 16
+#endif
+#define ALIGN 32
 
 #include "triple.h"
 #include "csc.h"
@@ -33,7 +37,7 @@ using namespace std;
 
 int main(int argc, char* argv[])
 {
-#ifndef CILK_STUB
+#if CILK==1
 	int gl_nworkers = WORKERS;
 #else
 	int gl_nworkers = 0;
@@ -110,7 +114,7 @@ int main(int argc, char* argv[])
 			return 1;		
 		}
 
-		long tstart = cilk_get_time();	// start timer
+		long tstart = get_time();	// start timer
 		cout << "Reading matrix with dimensions: "<< m << "-by-" << n <<" having "<< nnz << " nonzeros" << endl;
 		
 		INDEXTYPE * rowindices = new INDEXTYPE[nnz];
@@ -127,7 +131,7 @@ int main(int argc, char* argv[])
 			return -1;
 		}
 
-		long tend = cilk_get_time();	// end timer	
+		long tend = get_time();	// end timer	
 		cout<< "Reading matrix in binary took " << ((VALUETYPE) (tend-tstart)) /1000 << " seconds" <<endl;
 		fclose(f);
 		
@@ -152,7 +156,7 @@ int main(int argc, char* argv[])
 		infile.unget();
 		infile >> m >> n >> nnz;	// #{rows}-#{cols}-#{nonzeros}
 
-		long tstart = cilk_get_time();	// start timer	
+		long tstart = get_time();	// start timer	
 		Triple<VALUETYPE, INDEXTYPE> * triples = new Triple<VALUETYPE, INDEXTYPE>[nnz];
 	
 		if (infile.is_open())
@@ -167,7 +171,7 @@ int main(int argc, char* argv[])
 			}
 			assert(cnz == nnz);	
 		}
-		long tend = cilk_get_time();	// end timer	
+		long tend = get_time();	// end timer	
 		cout<< "Reading matrix in ascii took " << ((double) (tend-tstart)) /1000 << " seconds" <<endl;
 	
 		cout << "converting to csc ... " << endl;

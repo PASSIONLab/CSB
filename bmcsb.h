@@ -31,6 +31,7 @@ public:
 	ofstream & PrintStats(ofstream & outfile) const;
 	IT colsize() const { return n;} 
 	IT rowsize() const { return m;} 
+	IT numnonzeros() const { return nz; }
 	IT numregb() const { return nrb;}
 	bool isPar() const { return ispar; }
 

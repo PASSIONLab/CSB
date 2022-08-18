@@ -6,6 +6,7 @@
 #include <climits>
 #include <cmath>
 #include <tr1/array>
+#include <memory>
 #include "promote.h"
 
 template <typename T>
@@ -60,7 +61,7 @@ struct UnrollerL {
 template<int End, int Step>
 struct UnrollerL<End, End, Step> {
     template<typename Lambda>
-    static void step(Lambda& func) {
+    [[maybe_unused]] static void step([[maybe_unused]] Lambda& func) {
 		// base case is when Begin=End; do nothing
     }
 };
@@ -75,13 +76,13 @@ struct PTSRArray
 	// y <- a*x + y overload with a=1
 	static void axpy(const array<T2, D> & b, array<T_promote, D> & c)
 	{
+		// const T2 * __restrict barr =  std::assume_aligned<ALIGN>(b.data());
+		// T_promote * __restrict carr = std::assume_aligned<ALIGN>(c.data());
 		const T2 * __restrict barr =  b.data();
 		T_promote * __restrict carr = c.data();
-		__assume_aligned(barr, ALIGN);
-		__assume_aligned(carr, ALIGN);
 
 		#pragma simd
-		for(int i=0; i<D; ++i)
+		for(unsigned int i=0; i<D; ++i)
 		{
 			carr[i] +=  barr[i];
 		}
@@ -92,13 +93,13 @@ struct PTSRArray
 	// Todo: Do partial unrolling; this code will bloat for D > 32 
 	static void axpy(T1 a, const array<T2,D> & b, array<T_promote,D> & c)
 	{
+		// const T2 * __restrict barr =  std::assume_aligned<ALIGN>(b.data());
+		// T_promote * __restrict carr = std::assume_aligned<ALIGN>(c.data());
 		const T2 * __restrict barr =  b.data();
 		T_promote * __restrict carr = c.data();
-		__assume_aligned(barr, ALIGN);
-		__assume_aligned(carr, ALIGN);
 
 		#pragma simd
-		for(int i=0; i<D; ++i)
+		for(unsigned int i=0; i<D; ++i)
 		{
 			carr[i] +=  a* barr[i];
 		}	

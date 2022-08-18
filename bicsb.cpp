@@ -20,8 +20,8 @@ void BiCsb<NT, IT>::Init(int workers, IT forcelogbeta)
 	bool sizereq;
 	if (ispar)
 	{
-		sizereq = ((IntPower<2>(rowbits) > SLACKNESS * workers) 
-			&& (IntPower<2>(colbits) > SLACKNESS * workers));
+		sizereq = ((IntPower<2>(rowbits) > (unsigned int) SLACKNESS * workers) 
+			&& (IntPower<2>(colbits) > (unsigned int) SLACKNESS * workers));
 	}
 	else
 	{
@@ -43,7 +43,7 @@ void BiCsb<NT, IT>::Init(int workers, IT forcelogbeta)
 	colhighbits = colbits-collowbits;	// # higher order bits for cols (has at least one bit)
 	if(ispar)
 	{
-		while(IntPower<2>(rowhighbits) < SLACKNESS * workers)
+		while(IntPower<2>(rowhighbits) < (unsigned int) SLACKNESS * workers)
 		{
 			rowhighbits++;
 			rowlowbits--;
@@ -869,8 +869,8 @@ void BiCsb<NT, IT>::SubSpMV(IT * __restrict btop, IT bstart, IT bend, const RHS 
 	IT * __restrict r_bot = bot;
 	NT * __restrict r_num = num;
 
-	__m128i lcms = _mm_set1_epi32 (lowcolmask);
-	__m128i lrms = _mm_set1_epi32 (lowrowmask);
+	[[maybe_unused]] __m128i lcms = _mm_set1_epi32 (lowcolmask);
+	[[maybe_unused]] __m128i lrms = _mm_set1_epi32 (lowrowmask);
 
 	for (IT j = bstart ; j < bend ; ++j)		// for all blocks inside that block row
 	{
@@ -1350,8 +1350,9 @@ ofstream & BiCsb<NT, IT>::PrintStats(ofstream & outfile) const
 	outfile << "## Number of real blocks is "<< ntop << endl;
 	outfile << "## Row imbalance is " << RowImbalance(*this) << endl;
 	outfile << "## Col imbalance is " << ColImbalance(*this) << endl;
+	#ifdef STATS
 	outfile << "## Block parallel calls is " << blockparcalls.get_value() << endl;
-	
+	#endif
 	std::vector<int> blocksizes(ntop);
 	for(IT i=0; i<nbr; ++i)
 	{

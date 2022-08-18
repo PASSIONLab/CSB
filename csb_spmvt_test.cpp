@@ -30,7 +30,7 @@ INDEXTYPE flops;
 
 int main(int argc, char* argv[])
 {
-#ifndef	CILK_STUB
+#if CILK==1
 	int gl_nworkers = __cilkrts_get_nworkers();
 #else
 	int gl_nworkers = 0;

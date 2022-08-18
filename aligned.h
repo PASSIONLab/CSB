@@ -2,6 +2,7 @@
 #include <malloc.h>
 #endif
 #include <cstdint>
+#include <cstdlib>
 #include <vector>
 #include <iostream>
 using namespace std;
@@ -71,7 +72,7 @@ class aligned_allocator
 		// Returns true if and only if storage allocated from *this
 		// can be deallocated from other, and vice versa.
 		// Always returns true for stateless allocators.
-		bool operator==(const aligned_allocator& other) const
+		bool operator==([[maybe_unused]] const aligned_allocator& other) const
 		{
 			return true;
 		}
@@ -110,7 +111,7 @@ class aligned_allocator
 			}
  
 			// Mallocator wraps malloc().
-			void * const pv = _mm_malloc(n * sizeof(T), Alignment);
+			void * const pv = std::aligned_alloc(Alignment, n * sizeof(T));
  
 			// Allocators should throw std::bad_alloc in the case of memory allocation failure.
 			if (pv == NULL)
@@ -121,9 +122,9 @@ class aligned_allocator
 			return static_cast<T *>(pv);
 		}
  
-		void deallocate(T * const p, const std::size_t n) const
+		void deallocate(T * const p, [[maybe_unused]] const std::size_t n) const
 		{
-			_mm_free(p);
+			free(p);
 		}
  
  

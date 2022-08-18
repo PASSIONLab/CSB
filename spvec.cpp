@@ -141,7 +141,7 @@ void Spvec<T,ITYPE>::fillzero()
 }
 
 template <typename NT, typename IT>
-void Verify(Spvec<NT, IT> & control, Spvec<NT, IT> & test, string name, IT m)
+void Verify(Spvec<NT, IT> & control, Spvec<NT, IT> & test, [[maybe_unused]] string name, IT m)
 {
     vector<NT>error(m);
     std::transform(&control[0], (&control[0])+m, &test[0], error.begin(), absdiff<NT>());
